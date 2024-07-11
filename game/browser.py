@@ -129,7 +129,12 @@ class GameBrowser:
                     return
 
             try:
-                self.page = self.context.new_page()
+
+                if self.context.pages:
+                    self.page = self.context.pages[0]
+                else:
+                    self.page = self.context.new_page()
+        
                 self.page.goto(url)
             except Exception as e:
                 LOGGER.error('Error opening page. Check if certificate is installed. \n%s',e)

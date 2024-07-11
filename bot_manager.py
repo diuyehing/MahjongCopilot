@@ -125,7 +125,12 @@ class BotManager:
     def start_browser(self):
         """ Start the browser thread, open browser window """
         ms_url = self.st.ms_url
-        proxy = self.mitm_server.proxy_str
+
+        if self.st.enable_proxinject:
+            proxy = self.mitm_server.proxy_str
+        else:
+            proxy = None
+
         self.browser.start(ms_url, proxy, self.st.browser_width, self.st.browser_height, self.st.enable_chrome_ext)
     
     def is_browser_zoom_off(self):
@@ -186,7 +191,7 @@ class BotManager:
         """ update the overlay if conditions are met"""
         if self._update_overlay_conditions_met():
             self._update_overlay_guide()
-            self._update_overlay_botleft()
+            # self._update_overlay_botleft()
             
         
     def enable_automation(self):
