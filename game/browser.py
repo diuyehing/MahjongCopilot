@@ -75,7 +75,7 @@ class GameBrowser:
         """ run browser and keep processing action queue (blocking)"""
         
         if proxy:
-            proxy_object = {"server": proxy}
+            proxy_object = {"server": proxy, "bypass": "*.png,*.jpg,*.mp3,*.mp4,*.webm"}
         else:
             proxy_object = None
 

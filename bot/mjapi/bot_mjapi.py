@@ -38,13 +38,17 @@ class BotMjapi(Bot):
         if self.st.mjapi_secret:    # login
             LOGGER.debug("Logging in with user: %s", self.st.mjapi_user)
             self.mjapi.login(self.st.mjapi_user, self.st.mjapi_secret)
-        else:         # try register  
-            LOGGER.debug("Registering in with user: %s", self.st.mjapi_user)          
-            res_reg = self.mjapi.register(self.st.mjapi_user)
-            self.st.mjapi_secret = res_reg['secret']
-            self.st.save_json()
-            LOGGER.info("Registered new user [%s] with MJAPI. User name and secret saved to settings.", self.st.mjapi_user)
-            self.mjapi.login(self.st.mjapi_user, self.st.mjapi_secret)
+        # else:         # try register
+        #     LOGGER.debug("Registering in with user: %s", self.st.mjapi_user)
+        #     res_reg = self.mjapi.register(self.st.mjapi_user)
+        #     self.st.mjapi_secret = res_reg['secret']
+        #     self.st.save_json()
+        #     LOGGER.info("Registered new user [%s] with MJAPI. User name and secret saved to settings.", self.st.mjapi_user)
+        #     self.mjapi.login(self.st.mjapi_user, self.st.mjapi_secret)
+        else:
+            # self.mjapi.trial()
+            self.mjapi.set_temp_user("DgrVeNqMgbhWNdhmW4wc2NqYVr8jKjlaX/eIjk5djaE=")
+            # self.mjapi.set_temp_user(self.st.mjapi_user)
 
         model_list = self.mjapi.list_models()
         if not model_list:
@@ -70,7 +74,7 @@ class BotMjapi(Bot):
         if self.mjapi.token:    # update usage and logout on deleting
             self.st.mjapi_usage = self.mjapi.get_usage()
             self.st.save_json()
-            self.mjapi.logout()
+            # self.mjapi.logout()
 
     def _init_bot_impl(self, _mode:GameMode=GameMode.MJ4P):
         self.mjapi.start_bot(self.seat, BotMjapi.bound, self.model_name)

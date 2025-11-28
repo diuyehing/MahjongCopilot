@@ -40,6 +40,19 @@ class WSDataInterceptor:
         self.message_queue = queue.Queue()      
         """Queue for unretrieved messages
         each element is: WSMessage"""
+
+        # Static file extensions that should be streamed without buffering
+        self.stream_extensions = {
+            '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico',  # Images
+            '.mp3', '.mp4', '.wav', '.ogg', '.webm', '.avi', '.mov',  # Media
+            '.zip', '.tar', '.gz', '.rar', '.7z',  # Archives
+            '.pdf', '.doc', '.docx', '.xls', '.xlsx',  # Documents
+            '.woff', '.woff2', '.ttf', '.eot',  # Fonts
+            '.bin', '.exe', '.dll', '.so',  # Binaries
+        }
+
+        # Response size limit for buffering (10MB)
+        self.max_response_size = 10 * 1024 * 1024
         
     def allow_url(self, url:str) -> bool:
         """ return true if url is allowed"""
@@ -78,6 +91,8 @@ class WSDataInterceptor:
     def request(self, flow: HTTPFlow):
         """ handler for request"""
         parsed_url = urlparse(flow.request.url)
+
+        # Kill Aliyun error logging
         if parsed_url.hostname == "majsoul-hk-client.cn-hongkong.log.aliyuncs.com":
             qs = parse_qs(parsed_url.query)
             try:
@@ -86,10 +101,27 @@ class WSDataInterceptor:
                     LOGGER.warning("Majsoul Aliyun Error (killed): %s", str(qs))
                     flow.kill()
                 else:
-                    # LOGGER.debug("Majsoul Aliyun Log detected, len = %d", len(str(qs)))
                     LOGGER.debug("Majsoul Aliyun Log: %s", qs)
             except:
                 return
+
+        # Enable streaming for static files to reduce buffering overhead
+        path_lower = parsed_url.path.lower()
+        for ext in self.static_extensions:
+            if path_lower.endswith(ext):
+                # Don't decode/modify these responses - let them pass through
+                flow.request.stream = lambda _: True
+                break
+
+    def response(self, flow: HTTPFlow):
+        """ handler for response - enable streaming for large responses"""
+        # Check if this is a static file response
+        if flow.response:
+            content_type = flow.response.headers.get("content-type", "").lower()
+            # Stream image, video, audio, and other binary content
+            if any(t in content_type for t in ['image/', 'video/', 'audio/', 'font/',
+                                                'application/octet-stream', 'application/zip']):
+                flow.response.stream = lambda _: True
     
 SOCKS5 = "socks5"
 HTTP = "http"

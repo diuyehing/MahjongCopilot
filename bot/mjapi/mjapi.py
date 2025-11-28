@@ -74,6 +74,20 @@ class MjapiClient:
         else:
             raise RuntimeError(f"Error login: {res_json}")
 
+    def trial(self):
+        path = '/user/trial'
+        data = {'code': 'FREE_TRIAL_SPONSORED_BY_MJAPI_DiscordID_9ns4esyx'}
+        res_json = self.post_req(path, json=data)
+        if 'id' in res_json:
+            self.token = res_json['id']
+            self.set_bearer_token(self.token)
+        else:
+            raise RuntimeError(f"Error login: {res_json}")
+
+    def set_temp_user(self, token):
+        self.token = token
+        self.set_bearer_token(self.token)
+
     def get_user_info(self):
         """Get current user info."""
         path = '/user'
