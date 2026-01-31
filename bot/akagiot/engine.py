@@ -28,14 +28,19 @@ class MortalEngineAkagiOt:
         self.timeout = timeout
         self.retries = retries
         
+        # Create a requests Session for connection pooling and performance
+        self.session = requests.Session()
+        # Set default headers for all requests
+        self.session.headers.update({'Authorization': self.api_key})
+
         if self.mode == GameMode.MJ4P:
             self.api_path = r"/react_batch"
         elif self.mode == GameMode.MJ3P:
             self.api_path = r"/react_batch_3p"
         else:
             raise BotNotSupportingMode(self.mode)
-        
-        
+
+
     def react_batch(self, obs, masks, _invisible_obs):
         """ react_batch for mjai.Bot to call"""
         list_obs = [o.tolist() for o in obs]
@@ -46,31 +51,37 @@ class MortalEngineAkagiOt:
         }
         data = json.dumps(post_data, separators=(',', ':'))
         compressed_data = gzip.compress(data.encode('utf-8'))
-        headers = {
-            'Authorization': self.api_key,
-            'Content-Encoding': 'gzip',
-        }
-        
+
+        # Content-Encoding header for this specific request
+        headers = {'Content-Encoding': 'gzip'}
+
         # retry multiple times to post and get response
         for attempt in range(self.retries):
             try:
-                r = requests.post(f'{self.server}{self.api_path}',
+                r = self.session.post(
+                    f'{self.server}{self.api_path}',
                     headers=headers,
                     data=compressed_data,
-                    timeout=self.timeout)
+                    timeout=self.timeout
+                )
                 break
             except requests.exceptions.Timeout:
                 LOGGER.warning("AkagiOT api timeout, attempt %d/%d", attempt+1, self.retries)
                 r = None
                 continue
-        
+
         if r is None:
-            raise RuntimeError("AkagiOT API all retries failed.")            
-            
+            raise RuntimeError("AkagiOT API all retries failed.")
+
         if r.status_code != 200:
             r.raise_for_status()
         r_json = r.json()
         return r_json['actions'], r_json['q_out'], r_json['masks'], r_json['is_greedy']
+
+    def __del__(self):
+        """ Close session when object is destroyed """
+        if hasattr(self, 'session'):
+            self.session.close()
 
 # Mortal Engine Parameters:
 #

@@ -4,6 +4,9 @@ API 文档: https://pastebin.com/wks80EsZ
 把文档内容粘贴到测试网址: https://editor.swagger.io/"""
 
 import requests
+import threading
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 class MjapiClient:
     """ MJAPI API wrapper"""
@@ -12,38 +15,66 @@ class MjapiClient:
         self.timeout = timeout
         self.token:str = None
         self.headers = {}
+        # 创建一个持久化的 session 来复用 TCP 连接
+        self.session = requests.Session()
+
+        # 配置连接池：pool_connections=1 和 pool_maxsize=1 确保只使用单个TCP连接
+        # 这样可以避免超过速率限制导致的429错误
+        adapter = HTTPAdapter(
+            pool_connections=1,  # 连接池中的连接数
+            pool_maxsize=1,      # 连接池最大连接数
+            max_retries=0        # 不自动重试，由上层业务逻辑控制重试
+        )
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+
+        # 添加线程锁以确保同一时间只有一个请求，避免创建多个TCP连接和429错误
+        self._lock = threading.Lock()
+
+    def __del__(self):
+        """关闭session以释放资源"""
+        if hasattr(self, 'session'):
+            self.session.close()
+
+    def close(self):
+        """显式关闭session"""
+        self.session.close()
 
     def set_bearer_token(self, token):
         """Set the bearer token for authentication."""
         self.token = token
         self.headers['Authorization'] = f'Bearer {token}'
-    
+
     def post_req(self, path:str, json=None, raise_error:bool=True):
         """ send POST to API and process response"""
         try:
             full_url = f'{self.base_url}{path}'
-            res = requests.post(full_url, json=json, headers=self.headers, timeout=self.timeout)
+            # 使用线程锁确保同一时间只有一个请求，复用单个TCP连接
+            with self._lock:
+                res = self.session.post(full_url, json=json, headers=self.headers, timeout=self.timeout)
             return self._process_res(res, raise_error)
         except requests.RequestException as e:
             if raise_error:
                 raise e
             else:
                 return None
-    
+
     def get_req(self, path:str, raise_error:bool=True):
         """ send GET to API and process response"""
         try:
             full_url = f'{self.base_url}{path}'
-            res = requests.get(full_url, headers=self.headers, timeout=self.timeout)
+            # 使用线程锁确保同一时间只有一个请求，复用单个TCP连接
+            with self._lock:
+                res = self.session.get(full_url, headers=self.headers, timeout=self.timeout)
             return self._process_res(res, raise_error)
         except requests.RequestException as e:
             if raise_error:
                 raise e
             else:
                 return None
-        
+
     def _process_res(self, res:requests.Response, raise_error:bool):
-        """ return results or raise error"""            
+        """ return results or raise error"""
         if res.ok:
             return res.json() if res.content else None
         elif 'error' in res.json():
@@ -53,8 +84,8 @@ class MjapiClient:
             return res.json()
         else:
             raise RuntimeError(f"Unexpected API response {res.status_code}: {res.text}")
-        
-       
+
+
 
     def register(self, name):
         """Register a new user with a name."""
@@ -141,7 +172,9 @@ class MjapiClient:
 
     def _post_act(self, path, _seq, actions):
         # post request to MJAPI and process response/errors
-        response = requests.post(self.base_url + path, json=actions, headers=self.headers, timeout=self.timeout)
+        # 使用线程锁确保同一时间只有一个请求，复用单个TCP连接
+        with self._lock:
+            response = self.session.post(self.base_url + path, json=actions, headers=self.headers, timeout=self.timeout)
         if response.content:
             response_json = response.json()
             if response.status_code == 200:

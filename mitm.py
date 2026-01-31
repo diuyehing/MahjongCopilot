@@ -41,29 +41,16 @@ class WSDataInterceptor:
         """Queue for unretrieved messages
         each element is: WSMessage"""
 
-        # Static file extensions that should be streamed without buffering
-        self.stream_extensions = {
-            '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico',  # Images
-            '.mp3', '.mp4', '.wav', '.ogg', '.webm', '.avi', '.mov',  # Media
-            '.zip', '.tar', '.gz', '.rar', '.7z',  # Archives
-            '.pdf', '.doc', '.docx', '.xls', '.xlsx',  # Documents
-            '.woff', '.woff2', '.ttf', '.eot',  # Fonts
-            '.bin', '.exe', '.dll', '.so',  # Binaries
-        }
-
-        # Response size limit for buffering (10MB)
-        self.max_response_size = 10 * 1024 * 1024
-        
     def allow_url(self, url:str) -> bool:
         """ return true if url is allowed"""
         if not self.allowed_domains:
             # no filtering if None/empty
             return True
-        
+
         if any(d in url for d in self.allowed_domains):
             # allowed
             return True
-        
+
         return False
 
     def websocket_start(self, flow:HTTPFlow):
@@ -72,22 +59,22 @@ class WSDataInterceptor:
             self.message_queue.put(WSMessage(flow.id, flow.timestamp_start, None, WsType.START))
         else:
             flow.kill()
-            LOGGER.info("Killing flow since it is not in allowed domains: %s", flow.request.pretty_url)            
-        
+            LOGGER.info("Killing flow since it is not in allowed domains: %s", flow.request.pretty_url)
+
     def websocket_message(self, flow:HTTPFlow):
         """ ws message handler"""
         msg = flow.websocket.messages[-1]
         if self.allow_url(flow.request.pretty_url):
             self.message_queue.put(WSMessage(flow.id, msg.timestamp, msg.content))
-        
+
     def websocket_end(self, flow:HTTPFlow):
         """ ws flow end handler"""
         if self.allow_url(flow.request.pretty_url):
-            self.message_queue.put(WSMessage(flow.id, flow.timestamp_start, None, WsType.END))        
+            self.message_queue.put(WSMessage(flow.id, flow.timestamp_start, None, WsType.END))
 
     def replace_next_msg(self):
         pass
-    
+
     def request(self, flow: HTTPFlow):
         """ handler for request"""
         parsed_url = urlparse(flow.request.url)
@@ -104,24 +91,6 @@ class WSDataInterceptor:
                     LOGGER.debug("Majsoul Aliyun Log: %s", qs)
             except:
                 return
-
-        # Enable streaming for static files to reduce buffering overhead
-        path_lower = parsed_url.path.lower()
-        for ext in self.static_extensions:
-            if path_lower.endswith(ext):
-                # Don't decode/modify these responses - let them pass through
-                flow.request.stream = lambda _: True
-                break
-
-    def response(self, flow: HTTPFlow):
-        """ handler for response - enable streaming for large responses"""
-        # Check if this is a static file response
-        if flow.response:
-            content_type = flow.response.headers.get("content-type", "").lower()
-            # Stream image, video, audio, and other binary content
-            if any(t in content_type for t in ['image/', 'video/', 'audio/', 'font/',
-                                                'application/octet-stream', 'application/zip']):
-                flow.response.stream = lambda _: True
     
 SOCKS5 = "socks5"
 HTTP = "http"
