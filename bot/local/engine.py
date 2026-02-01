@@ -102,7 +102,7 @@ def get_engine(model_file:str) -> MortalEngine:
         device = torch.device('cpu')
 
     # Get the path of control_state_file = current directory / control_state_file
-    state = torch.load(model_file, map_location=device)
+    state = torch.load(model_file, map_location=device, weights_only=True)
 
     mortal = Brain(version=state['config']['control']['version'],
         conv_channels=state['config']['resnet']['conv_channels'],
